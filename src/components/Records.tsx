@@ -110,12 +110,13 @@ const Records: React.FC = () => {
   const rebuildRecords = async (targetFacultyId: string) => {
     try {
       // Fetch fresh data for records
-      const [studentsSnapshot, usersSnapshot, submissionsSnapshot, vivaAttemptsSnapshot, recordsSnapshot] = await Promise.all([
+      const [studentsSnapshot, usersSnapshot, submissionsSnapshot, vivaAttemptsSnapshot, recordsSnapshot, experimentsSnapshot] = await Promise.all([
         getDocs(query(collection(db, 'students'), where('facultyId', '==', targetFacultyId))),
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'submissions')),
         getDocs(collection(db, 'vivaAttempts')),
-        getDocs(query(collection(db, 'studentRecords'), where('facultyId', '==', targetFacultyId)))
+        getDocs(query(collection(db, 'studentRecords'), where('facultyId', '==', targetFacultyId))),
+        getDocs(query(collection(db, 'experiments'), where('facultyId', '==', targetFacultyId)))
       ]);
 
       const studentsData = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
@@ -137,16 +138,28 @@ const Records: React.FC = () => {
         observationCorrectedDate: doc.data().observationCorrectedDate?.toDate(),
         recordSubmittedDate: doc.data().recordSubmittedDate?.toDate()
       }));
+      const experimentsData = experimentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
+      })) as Experiment[];
 
       // Build comprehensive records (same logic as before)
       const studentRecords: StudentRecord[] = [];
-      const experimentIds = experiments.map(exp => exp.id);
+      const experimentIds = experimentsData.map(exp => exp.id);
       const facultySubmissions = submissionsData.filter(sub => experimentIds.includes(sub.experimentId));
 
+      console.log('Debug - Faculty ID:', targetFacultyId);
+      console.log('Debug - Students found:', studentsData.length);
+      console.log('Debug - Experiments found:', experimentsData.length);
+      console.log('Debug - All submissions:', submissionsData.length);
+      console.log('Debug - Faculty submissions:', facultySubmissions.length);
+      console.log('Debug - Approved submissions:', facultySubmissions.filter(s => s.status === 'approved').length);
+
       studentsData.forEach(student => {
-        experiments.forEach(experiment => {
+        experimentsData.forEach(experiment => {
           const submission = facultySubmissions.find(sub =>
-            sub.studentId === student.uid && sub.experimentId === experiment.id
+            (sub.studentId === student.uid || sub.studentId === student.id) && sub.experimentId === experiment.id
           );
 
           const userProfile = usersData.find(user =>
@@ -158,14 +171,15 @@ const Records: React.FC = () => {
           const studentEmail = userProfile?.email || student.email;
 
           const vivaAttempt = vivaAttemptsData.find(attempt =>
-            attempt.studentId === student.uid && attempt.experimentId === experiment.id
+            (attempt.studentId === student.uid || attempt.studentId === student.id) && attempt.experimentId === experiment.id
           );
 
           const existingRecord = existingRecords.find(record =>
-            record.studentId === student.uid && record.experimentId === experiment.id
+            (record.studentId === student.uid || record.studentId === student.id) && record.experimentId === experiment.id
           );
 
           if (submission && submission.status === 'approved') {
+            console.log('Debug - Adding record for:', studentName, experiment.title, 'Approved by:', submission.approvedByName);
             studentRecords.push({
               studentId: student.uid || student.id,
               studentName,
@@ -178,6 +192,8 @@ const Records: React.FC = () => {
               approvedDate: submission.approvedAt,
               approvedBy: submission.approvedBy,
               approvedByName: submission.approvedByName,
+              approvedBy: submission.approvedBy,
+              approvedByName: submission.approvedByName,
               observationCorrected: existingRecord?.observationCorrected || false,
               recordSubmitted: existingRecord?.recordSubmitted || false,
               observationCorrectedDate: existingRecord?.observationCorrectedDate,
@@ -185,12 +201,13 @@ const Records: React.FC = () => {
               vivaCompleted: !!vivaAttempt,
               vivaScore: vivaAttempt?.score,
               vivaDate: vivaAttempt?.completedAt,
-              submissionLink: submission.submissionLink
+              submissionLink: submission.submissionLink || submission.submissionUrl || submission.link
             });
           }
         });
       });
 
+      console.log('Debug - Final records count:', studentRecords.length);
       setRecords(studentRecords);
     } catch (error) {
       console.error('Error rebuilding records:', error);
