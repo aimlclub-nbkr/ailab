@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, ExternalLink, Eye, FileText, Calendar, User, Clock, BookOpen, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { collection, getDocs, query, where, doc, updateDoc, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { StudentSubmission, Student, Experiment } from '../types';
 
@@ -17,94 +17,12 @@ const Submissions: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
-    setupRealtimeListeners();
+    fetchData();
   }, [userProfile]);
 
   useEffect(() => {
     filterSubmissions();
   }, [submissions, selectedExperiment, filter]);
-
-  const setupRealtimeListeners = async () => {
-    if (!userProfile) return;
-
-    // Determine which faculty's data to fetch
-    const targetFacultyId = userProfile.primaryFacultyId || userProfile.uid;
-
-    try {
-      // Fetch static data first (students, experiments, users)
-      await fetchStaticData(targetFacultyId);
-
-      // Set up real-time listener for submissions
-      const submissionsQuery = query(
-        collection(db, 'submissions'), 
-        orderBy('submittedAt', 'desc')
-      );
-      
-      const unsubscribeSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
-        const submissionsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          submittedAt: doc.data().submittedAt?.toDate() || new Date(),
-          approvedAt: doc.data().approvedAt?.toDate()
-        })) as StudentSubmission[];
-
-        // Filter submissions to only include those for this faculty's experiments
-        const experimentIds = experiments.map(exp => exp.id);
-        const facultySubmissions = submissionsData.filter(sub =>
-          experimentIds.includes(sub.experimentId)
-        );
-
-        setSubmissions(facultySubmissions);
-        console.log('Real-time update: Submissions updated for faculty');
-      });
-
-      // Cleanup function
-      return () => {
-        unsubscribeSubmissions();
-      };
-    } catch (error) {
-      console.error('Error setting up real-time listeners:', error);
-    }
-  };
-
-  const fetchStaticData = async (targetFacultyId: string) => {
-    try {
-      // Fetch all students enrolled by this faculty
-      const studentsQuery = query(
-        collection(db, 'students'),
-        where('facultyId', '==', targetFacultyId)
-      );
-      const studentsSnapshot = await getDocs(studentsQuery);
-      const studentsData = studentsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Student[];
-      setStudents(studentsData);
-
-      // Fetch all user profiles to get student names by uid
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setUserProfiles(usersData);
-
-      // Fetch experiments created by this faculty
-      const experimentsQuery = query(
-        collection(db, 'experiments'),
-        where('facultyId', '==', targetFacultyId)
-      );
-      const experimentsSnapshot = await getDocs(experimentsQuery);
-      const experimentsData = experimentsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Experiment[];
-      setExperiments(experimentsData);
-    } catch (error) {
-      console.error('Error fetching static data:', error);
-    }
-  };
 
   const fetchData = async () => {
     if (!userProfile) return;
