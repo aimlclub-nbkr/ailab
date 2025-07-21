@@ -15,6 +15,8 @@ interface StudentRecord {
   submissionStatus: 'approved' | 'rejected' | 'pending';
   submissionDate?: Date;
   approvedDate?: Date;
+  approvedBy?: string;
+  approvedByName?: string;
   observationCorrected: boolean;
   recordSubmitted: boolean;
   observationCorrectedDate?: Date;
@@ -174,6 +176,8 @@ const Records: React.FC = () => {
               submissionStatus: submission.status,
               submissionDate: submission.submittedAt,
               approvedDate: submission.approvedAt,
+              approvedBy: submission.approvedBy,
+              approvedByName: submission.approvedByName,
               observationCorrected: existingRecord?.observationCorrected || false,
               recordSubmitted: existingRecord?.recordSubmitted || false,
               observationCorrectedDate: existingRecord?.observationCorrectedDate,
@@ -308,6 +312,8 @@ const Records: React.FC = () => {
               submissionStatus: submission.status,
               submissionDate: submission.submittedAt,
               approvedDate: submission.approvedAt,
+              approvedBy: submission.approvedBy,
+              approvedByName: submission.approvedByName,
               observationCorrected: existingRecord?.observationCorrected || false,
               recordSubmitted: existingRecord?.recordSubmitted || false,
               observationCorrectedDate: existingRecord?.observationCorrectedDate,
@@ -767,6 +773,11 @@ const Records: React.FC = () => {
                         <div className="text-xs text-gray-500">
                           Approved: {record.approvedDate?.toLocaleDateString()}
                         </div>
+                        {record.approvedByName && (
+                          <div className="text-xs text-blue-600 font-medium">
+                            Approved by: {record.approvedByName}
+                          </div>
+                        )}
                       </div>
                     </td>
                     
